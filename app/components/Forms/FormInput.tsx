@@ -1,5 +1,4 @@
 import { InputType } from "@/Types/InputTypes";
-
 interface Props {
   name: string;
   title?: string;
@@ -8,7 +7,10 @@ interface Props {
   placeholder?: string;
   value?: string | number;
   isDisabled?: boolean;
+  multiple?: boolean;
   children?: React.ReactNode;
+  onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  accept?: string;
 }
 export default function FormInput({
   name,
@@ -18,7 +20,10 @@ export default function FormInput({
   placeholder,
   value,
   isDisabled,
+  multiple,
   children,
+  onChange,
+  accept
 }: Props) {
   return (
     <div className="flex-1 mb-4">
@@ -36,6 +41,9 @@ export default function FormInput({
         disabled={isDisabled}
         aria-describedby="helper-text-explanation"
         step="any"
+        multiple={multiple}
+        accept={accept}
+        onChange={onChange}
         className={`w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 
       focus:ring-[#5C6B73] focus:border-[#5C6B73] dark:border-2 dark:border-[#9DB4C0] 
       dark:text-[#E0FBFC] flex-1 min-w-50 
