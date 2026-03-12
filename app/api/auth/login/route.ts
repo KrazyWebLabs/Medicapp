@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
 import { db } from "@/lib/db";
 import { ok, badRequest, unauthorized, serverError } from "@/lib/api";
 
@@ -35,19 +34,9 @@ export async function POST(req: NextRequest) {
       return unauthorized();
     }
 
-    // 3. Generar JWT con payload {userId, roleId, roleName}
-    const token = jwt.sign(
-      {
-        userId: user.userId,
-        roleId: user.roleId,
-        roleName: user.roleName,
-      },
-      process.env.JWT_SECRET!,
-      { expiresIn: "8h" }
-    );
-
+    // 3. Retornar contexto del usuario como objeto JSON
+    //    El frontend lo mandará en el header x-user-context en cada petición
     return ok({
-      token,
       userId: user.userId,
       firstName: user.firstName,
       lastName: user.lastName,
