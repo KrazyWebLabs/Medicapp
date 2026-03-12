@@ -3,6 +3,8 @@ import { db } from "@/lib/db";
 import { getUser } from "@/lib/auth";
 import { ok, badRequest, unauthorized, serverError } from "@/lib/api";
 
+//Monarchh
+
 function generateSlots(date: string): string[] {
   const slots: string[] = [];
   const [year, month, day] = date.split("-").map(Number);
