@@ -1,14 +1,8 @@
 // BE-17: GET /api/medications?search=&category=
 // Listar medicamentos con semáforo calculado SERVER-SIDE y primer batch por vencer.
 // Turso tables: Medications, Batches
-
-import { createClient } from "@libsql/client";
 import { NextRequest, NextResponse } from "next/server";
-
-const db = createClient({
-  url: process.env.TURSO_DATABASE_URL!,
-  authToken: process.env.TURSO_AUTH_TOKEN!,
-});
+import { turso as db } from "@/app/turso";
 
 // Calcula el color del semáforo según el stock y el punto de reorden
 function calcularSemaforo(
@@ -23,41 +17,35 @@ function calcularSemaforo(
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const search   = searchParams.get("search") ?? "";
-    const category = searchParams.get("category") ?? "";
+    const search = searchParams.get("search") ?? "";
 
     // Query principal de medicamentos
+
     let sql = `
       SELECT 
         m.medicationId,
-        m.name,
-        m.category,
-        m.code,
+        m.brandName,
+        m.activeIngredient,
+        m.presentation,
         m.currentStock,
-        m.reorderPoint,
-        m.unit
+        m.reorderPoint
       FROM Medications m
       WHERE 1=1
     `;
     const args: string[] = [];
 
     if (search) {
-      sql += ` AND (m.name LIKE ? OR m.code LIKE ?)`;
+      sql += ` AND (m.brandName LIKE ? OR m.activeIngredient LIKE ?)`;
       args.push(`%${search}%`, `%${search}%`);
     }
 
-    if (category) {
-      sql += ` AND m.category = ?`;
-      args.push(category);
-    }
-
-    sql += ` ORDER BY m.name ASC`;
+    sql += ` ORDER BY m.brandName ASC`;
 
     const { rows: medications } = await db.execute({ sql, args });
 
     // Para cada medicamento, obtener el próximo batch por vencer
     const medicationsConSemaforo = await Promise.all(
-      medications.map(async (med: any) => {
+      medications.map(async (med) => {
         const { rows: batches } = await db.execute({
           sql: `
             SELECT batchId, expirationDate, quantity

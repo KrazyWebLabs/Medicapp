@@ -4,25 +4,22 @@
 // - Si stock resultante <= reorderPoint → insertar alerta en CollaborativeNotes automáticamente
 // Turso tables: Medications, Prescriptions, CollaborativeNotes
 
-import { createClient } from "@libsql/client";
 import { NextRequest, NextResponse } from "next/server";
-
-const db = createClient({
-  url: process.env.TURSO_DATABASE_URL!,
-  authToken: process.env.TURSO_AUTH_TOKEN!,
-});
+import { turso as db } from "@/app/turso";
+import { InStatement } from "@libsql/client";
 
 interface DispenseBody {
   medicationId: string;
   prescriptionId: string;
   quantity: number;
-  dispensedBy: string; // userId del que despacha
+  dispensedBy: string;
+  patientId: string; // ← nuevo
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body: DispenseBody = await req.json();
-    const { medicationId, prescriptionId, quantity, dispensedBy } = body;
+    const { medicationId, prescriptionId, quantity, dispensedBy, patientId } = body;
 
     // Validaciones básicas
     if (!medicationId || !prescriptionId || !quantity || !dispensedBy) {
@@ -45,7 +42,7 @@ export async function POST(req: NextRequest) {
 
     // Obtener stock y reorderPoint del medicamento
     const { rows: medRows } = await db.execute({
-      sql: `SELECT medicationId, name, currentStock, reorderPoint FROM Medications WHERE medicationId = ?`,
+      sql: `SELECT medicationId, brandName, currentStock, reorderPoint FROM Medications WHERE medicationId = ?`,
       args: [medicationId],
     });
 
@@ -56,7 +53,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const med = medRows[0] as any;
+    const med = medRows[0];
     const stockActual = Number(med.currentStock);
     const reorderPoint = Number(med.reorderPoint);
     const nuevoStock = stockActual - quantity;
@@ -76,16 +73,8 @@ export async function POST(req: NextRequest) {
     const now = new Date().toISOString();
 
     // Preparar las operaciones de la transacción
-    const operations: any[] = [
-      // 1. Registrar la salida / dispensa
-      {
-        sql: `
-          INSERT INTO Dispensations (medicationId, prescriptionId, quantity, dispensedBy, dispensedAt)
-          VALUES (?, ?, ?, ?, ?)
-        `,
-        args: [medicationId, prescriptionId, quantity, dispensedBy, now],
-      },
-      // 2. Actualizar el stock del medicamento
+    const operations: InStatement[] = [
+      // Solo actualizar el stock
       {
         sql: `UPDATE Medications SET currentStock = ? WHERE medicationId = ?`,
         args: [nuevoStock, medicationId],
@@ -94,18 +83,20 @@ export async function POST(req: NextRequest) {
 
     // 3. Si el nuevo stock queda en zona de alerta, insertar CollaborativeNote isAlert=1
     let alertaGenerada = false;
+
+    // Alerta si stock <= reorderPoint
     if (nuevoStock <= reorderPoint) {
       const alertContent =
-        `⚠️ ALERTA DE INVENTARIO: ${med.name} — Stock bajo (${nuevoStock} unidades). ` +
+        `⚠️ ALERTA DE INVENTARIO: ${med.brandName} — Stock bajo (${nuevoStock} unidades). ` +
         `Punto de reorden: ${reorderPoint}. Se requiere reabastecimiento.`;
-
-      operations.push({
-        sql: `
-          INSERT INTO CollaborativeNotes (patientId, authorId, noteContent, isAlert, alertTag, createdAt)
-          VALUES (NULL, ?, ?, 1, 'STOCK', ?)
-        `,
-        args: [dispensedBy, alertContent, now],
-      });
+        // Actualiza el INSERT
+        operations.push({
+          sql: `
+            INSERT INTO CollaborativeNotes (patientId, authorId, noteContent, isAlert, alertTags, createdAt)
+            VALUES (?, ?, ?, 1, 'STOCK', ?)
+          `,
+          args: [patientId, dispensedBy, alertContent, now],
+        });
       alertaGenerada = true;
     }
 

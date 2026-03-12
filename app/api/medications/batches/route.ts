@@ -2,26 +2,20 @@
 // Registrar entrada de lote (cantidad + fechaExpiración).
 // TRANSACCIÓN: insertar Batch + UPDATE Medications.currentStock sumando quantity.
 // Turso tables: Medications, Batches
-
-import { createClient } from "@libsql/client";
 import { NextRequest, NextResponse } from "next/server";
-
-const db = createClient({
-  url: process.env.TURSO_DATABASE_URL!,
-  authToken: process.env.TURSO_AUTH_TOKEN!,
-});
+import { turso as db } from "@/app/turso";
 
 interface BatchBody {
   medicationId: string;
   quantity: number;
-  expirationDate: string; // ISO date: "2026-12-31"
-  supplier?: string;
+  expirationDate: string;
 }
+
 
 export async function POST(req: NextRequest) {
   try {
     const body: BatchBody = await req.json();
-    const { medicationId, quantity, expirationDate, supplier } = body;
+    const { medicationId, quantity, expirationDate } = body;
 
     // Validaciones básicas
     if (!medicationId || !quantity || !expirationDate) {
@@ -54,19 +48,18 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
-
-    const stockActual = Number((medRows[0] as any).currentStock);
+    
+    const stockActual = Number((medRows[0]).currentStock);
     const nuevoStock = stockActual + quantity;
-    const createdAt = new Date().toISOString();
 
     // TRANSACCIÓN: insertar batch + actualizar stock (Turso usa batch para transacciones)
     const results = await db.batch([
       {
         sql: `
-          INSERT INTO Batches (medicationId, quantity, expirationDate, supplier, createdAt)
-          VALUES (?, ?, ?, ?, ?)
+          INSERT INTO Batches (medicationId, quantity, entryDate, expirationDate)
+          VALUES (?, ?, DATE('now'), ?)
         `,
-        args: [medicationId, quantity, expirationDate, supplier ?? null, createdAt],
+        args: [medicationId, quantity, expirationDate],
       },
       {
         sql: `UPDATE Medications SET currentStock = ? WHERE medicationId = ?`,

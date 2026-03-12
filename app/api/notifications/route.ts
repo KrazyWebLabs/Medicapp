@@ -3,13 +3,8 @@
 // Llamado por Vercel Cron o node-cron cada hora
 // Turso tables: Appointments, Users
 
-import { createClient } from "@libsql/client";
 import { NextResponse } from "next/server";
-
-const db = createClient({
-  url: process.env.TURSO_DATABASE_URL!,
-  authToken: process.env.TURSO_AUTH_TOKEN!,
-});
+import { turso as db } from "@/app/turso";
 
 export async function POST() {
   try {

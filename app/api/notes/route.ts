@@ -2,26 +2,21 @@
 // Crear nota colaborativa post-consulta. isAlert=1 genera alerta entre módulos.
 // Turso tables: CollaborativeNotes, Users
 
-import { createClient } from "@libsql/client";
 import { NextRequest, NextResponse } from "next/server";
-
-const db = createClient({
-  url: process.env.TURSO_DATABASE_URL!,
-  authToken: process.env.TURSO_AUTH_TOKEN!,
-});
+import { turso as db } from "@/app/turso";
 
 interface CreateNoteBody {
   patientId: string;
   authorId: string;
   noteContent: string;
   isAlert?: number; // 0 = nota normal, 1 = alerta entre módulos
-  alertTag?: string; // ej: "STOCK", "NUTRICION", "CLINICO"
+  alertTags?: string; // ej: "STOCK", "NUTRICION", "CLINICO"
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body: CreateNoteBody = await req.json();
-    const { patientId, authorId, noteContent, isAlert = 0, alertTag } = body;
+    const { patientId, authorId, noteContent, isAlert = 0, alertTags } = body;
 
     // Validación: noteContent NO puede estar vacío
     if (!noteContent || noteContent.trim() === "") {
@@ -50,10 +45,10 @@ export async function POST(req: NextRequest) {
     const result = await db.execute({
       sql: `
         INSERT INTO CollaborativeNotes 
-          (patientId, authorId, noteContent, isAlert, alertTag, createdAt)
+          (patientId, authorId, noteContent, isAlert, alertTags, createdAt)
         VALUES (?, ?, ?, ?, ?, ?)
       `,
-      args: [patientId, authorId, noteContent.trim(), isAlert, alertTag ?? null, createdAt],
+      args: [patientId, authorId, noteContent.trim(), isAlert, alertTags ?? null, createdAt],
     });
 
     const noteId = result.lastInsertRowid?.toString();

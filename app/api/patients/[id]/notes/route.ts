@@ -2,29 +2,23 @@
 // Listar notas del paciente. Filtros: isAlert, from, to. Paginación offset/limit.
 // Turso tables: CollaborativeNotes, Users
 
-import { createClient } from "@libsql/client";
 import { NextRequest, NextResponse } from "next/server";
+import { turso as db } from "@/app/turso";
 
-const db = createClient({
-  url: process.env.TURSO_DATABASE_URL!,
-  authToken: process.env.TURSO_AUTH_TOKEN!,
-});
-
-interface RouteParams {
-  params: { id: string };
-}
-
-export async function GET(req: NextRequest, { params }: RouteParams) {
+export async function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
   try {
-    const { id: patientId } = params;
+    const { id: patientId } = await params;
     const { searchParams } = new URL(req.url);
 
     // Leer parámetros de filtro y paginación
-    const isAlert = searchParams.get("isAlert");   // "1" o "0"
-    const from    = searchParams.get("from");       // fecha ISO
-    const to      = searchParams.get("to");         // fecha ISO
-    const limit   = parseInt(searchParams.get("limit") ?? "20");
-    const offset  = parseInt(searchParams.get("offset") ?? "0");
+    const isAlert = searchParams.get("isAlert"); // "1" o "0"
+    const from = searchParams.get("from"); // fecha ISO
+    const to = searchParams.get("to"); // fecha ISO
+    const limit = parseInt(searchParams.get("limit") ?? "20");
+    const offset = parseInt(searchParams.get("offset") ?? "0");
 
     // Construir query dinámicamente según los filtros presentes
     let sql = `
@@ -32,7 +26,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         cn.noteId,
         cn.noteContent,
         cn.isAlert,
-        cn.alertTag,
+        cn.alertTags,
         cn.createdAt,
         u.firstName || ' ' || u.lastName AS authorName,
         u.userId AS authorId
@@ -41,7 +35,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       WHERE cn.patientId = ?
     `;
 
-    const args: (string | number)[] = [patientId];
+    const args: (string | number | bigint | null)[] = [patientId];
 
     if (isAlert !== null) {
       sql += ` AND cn.isAlert = ?`;
@@ -65,7 +59,7 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
 
     // Contar total para paginación
     let countSql = `SELECT COUNT(*) as total FROM CollaborativeNotes WHERE patientId = ?`;
-    const countArgs: (string | number)[] = [patientId];
+    const countArgs: (string | number | bigint | null)[] = [patientId];
 
     if (isAlert !== null) {
       countSql += ` AND isAlert = ?`;
@@ -80,8 +74,11 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
       countArgs.push(to);
     }
 
-    const { rows: countRows } = await db.execute({ sql: countSql, args: countArgs });
-    const total = Number((countRows[0] as any).total);
+    const { rows: countRows } = await db.execute({
+      sql: countSql,
+      args: countArgs,
+    });
+    const total = Number(countRows[0].total);
 
     return NextResponse.json(
       {
@@ -92,13 +89,13 @@ export async function GET(req: NextRequest, { params }: RouteParams) {
         error: null,
         status: 200,
       },
-      { status: 200 }
+      { status: 200 },
     );
   } catch (error) {
     console.error("[BE-16] Error al listar notas:", error);
     return NextResponse.json(
       { data: null, error: "Error interno del servidor", status: 500 },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
