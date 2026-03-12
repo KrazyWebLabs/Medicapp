@@ -1,13 +1,6 @@
-export type Cita = {
-  id: string;
-  matricula_doctor: string;
-  matricula_paciente: string;
-  nombre_paciente: string;
-  fecha: string;
-  estatus: "pendiente" | "completada" | "cancelada";
-};
+import { Appointment } from "@/Types/AppointmentType";
 
-export const agendaSeed: Cita[] = [
+export const agendaSeed: Appointment[] = [
   {
     id: "a-001",
     matricula_doctor: "DOC-001",
@@ -23,6 +16,9 @@ export const agendaSeed: Cita[] = [
     nombre_paciente: "María López",
     fecha: "2026-03-09",
     estatus: "completada",
+    diagnostico: "Hipertensión leve",
+    tratamiento: "Dieta baja en sodio y ejercicio moderado",
+    medico_responsable: "DOC-001",
   },
   {
     id: "a-003",
